@@ -407,26 +407,28 @@ class DeskPage
         <?php if (empty($posts)) : ?>
             <p style="color:#50575e">No AI-generated posts yet.</p>
         <?php else : ?>
-            <table class="wp-list-table widefat fixed striped" style="max-width:100%">
+            <table class="wp-list-table widefat fixed" id="ozi-recent-table">
                 <thead>
                     <tr>
                         <th style="width:44px"></th>
                         <th>Title</th>
-                        <th style="width:80px">Status</th>
-                        <th style="width:110px">Provider</th>
-                        <th style="width:120px">Generated</th>
+                        <th style="width:78px">Status</th>
+                        <th style="width:100px">Provider</th>
+                        <th style="width:110px">Generated</th>
                         <th style="width:150px">Short URL</th>
-                        <th style="width:60px"></th>
+                        <th style="width:160px">Copy</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($posts as $post) :
-                        $provider = get_post_meta($post->ID, '_ozi_ai_provider', true);
-                        $model    = get_post_meta($post->ID, '_ozi_ai_model', true);
-                        $shortUrl = get_post_meta($post->ID, '_ozi_short_url', true);
-                        $genAt    = get_post_meta($post->ID, '_ozi_last_generation_at', true);
-                        $thumb    = get_the_post_thumbnail_url($post->ID, 'thumbnail');
-                        $editUrl  = get_edit_post_link($post->ID, 'raw');
+                        $provider    = get_post_meta($post->ID, '_ozi_ai_provider', true);
+                        $shortUrl    = get_post_meta($post->ID, '_ozi_short_url', true);
+                        $caption     = get_post_meta($post->ID, '_ozi_ai_facebook_caption', true);
+                        $imagePrompt = get_post_meta($post->ID, '_ozi_ai_image_prompt', true);
+                        $genAt       = get_post_meta($post->ID, '_ozi_last_generation_at', true);
+                        $thumb       = get_the_post_thumbnail_url($post->ID, 'thumbnail');
+                        $editUrl     = get_edit_post_link($post->ID, 'raw');
+                        $rowId       = 'ozi-desk-row-' . $post->ID;
 
                         $statusColor = [
                             'publish' => '#0a7f37',
@@ -434,38 +436,137 @@ class DeskPage
                             'pending' => '#996800',
                             'private' => '#50575e',
                         ][$post->post_status] ?? '#50575e';
-                        $statusLabel = ucfirst($post->post_status);
                     ?>
                     <tr>
-                        <td>
+                        <td style="vertical-align:middle">
                             <?php if ($thumb) : ?>
-                                <img src="<?php echo esc_url($thumb); ?>" style="width:36px;height:36px;object-fit:cover;border-radius:3px;vertical-align:middle">
+                                <img src="<?php echo esc_url($thumb); ?>" style="width:36px;height:36px;object-fit:cover;border-radius:3px;display:block">
                             <?php else : ?>
-                                <span style="display:inline-block;width:36px;height:36px;background:#f0f0f1;border-radius:3px;line-height:36px;text-align:center;color:#aaa">🖼</span>
+                                <span style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:#f0f0f1;border-radius:3px;font-size:16px">🖼</span>
                             <?php endif; ?>
                         </td>
-                        <td>
+                        <td style="vertical-align:middle">
                             <a href="<?php echo esc_url($editUrl); ?>" style="font-weight:600">
-                                <?php echo esc_html(mb_substr($post->post_title ?: '(no title)', 0, 70)); ?>
+                                <?php echo esc_html(mb_substr($post->post_title ?: '(no title)', 0, 65)); ?>
                             </a>
                         </td>
-                        <td><span style="color:<?php echo esc_attr($statusColor); ?>;font-size:12px;font-weight:600"><?php echo esc_html($statusLabel); ?></span></td>
-                        <td style="font-size:12px;color:#50575e"><?php echo esc_html($provider ?: '—'); ?></td>
-                        <td style="font-size:12px;color:#50575e"><?php echo $genAt ? esc_html(wp_date('d/m H:i', strtotime($genAt))) : '—'; ?></td>
-                        <td style="font-size:12px">
+                        <td style="vertical-align:middle">
+                            <span style="color:<?php echo esc_attr($statusColor); ?>;font-size:11px;font-weight:700;text-transform:uppercase"><?php echo esc_html(ucfirst($post->post_status)); ?></span>
+                        </td>
+                        <td style="vertical-align:middle;font-size:12px;color:#50575e"><?php echo esc_html($provider ?: '—'); ?></td>
+                        <td style="vertical-align:middle;font-size:12px;color:#50575e">
+                            <?php echo $genAt ? esc_html(wp_date('d/m H:i', strtotime($genAt))) : '—'; ?>
+                        </td>
+                        <td style="vertical-align:middle;font-size:12px">
                             <?php if ($shortUrl) : ?>
-                                <a href="<?php echo esc_url($shortUrl); ?>" target="_blank"><?php echo esc_html($shortUrl); ?></a>
+                                <a href="<?php echo esc_url($shortUrl); ?>" target="_blank" style="word-break:break-all"><?php echo esc_html($shortUrl); ?></a>
                             <?php else : ?>
-                                <span style="color:#aaa">—</span>
+                                <span style="color:#ccc">—</span>
                             <?php endif; ?>
                         </td>
-                        <td>
-                            <a href="<?php echo esc_url($editUrl); ?>" class="button button-small">Edit</a>
+                        <td style="vertical-align:middle">
+                            <div style="display:flex;flex-wrap:wrap;gap:4px">
+                                <?php if ($caption) : ?>
+                                    <button type="button" class="button button-small ozi-copy-btn"
+                                        data-clipboard="<?php echo esc_attr($caption); ?>">
+                                        📋 Caption
+                                    </button>
+                                <?php endif; ?>
+                                <?php if ($imagePrompt) : ?>
+                                    <button type="button" class="button button-small ozi-copy-btn"
+                                        data-clipboard="<?php echo esc_attr($imagePrompt); ?>">
+                                        🖼 Prompt
+                                    </button>
+                                <?php endif; ?>
+                                <?php if ($caption && $shortUrl) : ?>
+                                    <button type="button" class="button button-small ozi-copy-btn"
+                                        data-clipboard="<?php echo esc_attr($caption . "\n\n" . $shortUrl); ?>">
+                                        🔗 Bundle
+                                    </button>
+                                <?php endif; ?>
+                                <?php if ($caption || $imagePrompt) : ?>
+                                    <button type="button" class="button button-small ozi-toggle-detail"
+                                        data-target="<?php echo esc_attr($rowId); ?>">↕</button>
+                                <?php endif; ?>
+                            </div>
                         </td>
                     </tr>
+
+                    <!-- Expandable detail -->
+                    <?php if ($caption || $imagePrompt) : ?>
+                    <tr id="<?php echo esc_attr($rowId); ?>" style="display:none">
+                        <td colspan="7" style="background:#f9f9f9;padding:14px 18px;border-top:2px solid #e0e0e0">
+                            <div style="display:grid;grid-template-columns:<?php echo ($caption && $imagePrompt) ? '1fr 1fr' : '1fr'; ?>;gap:14px">
+                                <?php if ($caption) : ?>
+                                <div>
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+                                        <strong style="font-size:12px">📋 Facebook Caption</strong>
+                                        <button type="button" class="button button-small ozi-copy-btn"
+                                            data-clipboard="<?php echo esc_attr($caption); ?>">Copy</button>
+                                    </div>
+                                    <textarea class="large-text code" rows="7" readonly style="font-size:11px"><?php echo esc_textarea($caption); ?></textarea>
+                                </div>
+                                <?php endif; ?>
+                                <?php if ($imagePrompt) : ?>
+                                <div>
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+                                        <strong style="font-size:12px">🖼 Image Prompt</strong>
+                                        <button type="button" class="button button-small ozi-copy-btn"
+                                            data-clipboard="<?php echo esc_attr($imagePrompt); ?>">Copy</button>
+                                    </div>
+                                    <textarea class="large-text code" rows="7" readonly style="font-size:11px"><?php echo esc_textarea($imagePrompt); ?></textarea>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
+
                     <?php endforeach; ?>
                 </tbody>
             </table>
+
+            <script>
+            (function () {
+                function initCopyAndToggle(scope) {
+                    scope.querySelectorAll('.ozi-copy-btn').forEach(function (btn) {
+                        if (btn.dataset.oziInit) return;
+                        btn.dataset.oziInit = '1';
+                        btn.addEventListener('click', function () {
+                            var text = btn.getAttribute('data-clipboard');
+                            if (!text) return;
+                            if (navigator.clipboard) {
+                                navigator.clipboard.writeText(text);
+                            } else {
+                                var ta = document.createElement('textarea');
+                                ta.value = text; document.body.appendChild(ta);
+                                ta.select(); document.execCommand('copy');
+                                document.body.removeChild(ta);
+                            }
+                            var orig = btn.textContent;
+                            btn.textContent = '✓';
+                            btn.style.color = '#0a7f37';
+                            setTimeout(function () { btn.textContent = orig; btn.style.color = ''; }, 1400);
+                        });
+                    });
+                    scope.querySelectorAll('.ozi-toggle-detail').forEach(function (btn) {
+                        if (btn.dataset.oziInit) return;
+                        btn.dataset.oziInit = '1';
+                        btn.addEventListener('click', function () {
+                            var target = document.getElementById(btn.getAttribute('data-target'));
+                            if (!target) return;
+                            var hidden = target.style.display === 'none';
+                            target.style.display = hidden ? 'table-row' : 'none';
+                            btn.textContent = hidden ? '↑' : '↕';
+                        });
+                    });
+                }
+                document.addEventListener('DOMContentLoaded', function () {
+                    var t = document.getElementById('ozi-recent-table');
+                    if (t) initCopyAndToggle(t);
+                });
+            })();
+            </script>
         <?php endif; ?>
         <?php
     }
