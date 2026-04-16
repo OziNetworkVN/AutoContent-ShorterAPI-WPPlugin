@@ -16,18 +16,31 @@ class ShortenerClient
         $this->logger = $logger;
     }
 
-    public function createLink($targetUrl, $hostname, $customSlug = '')
+    /**
+     * @param string $targetUrl
+     * @param string $hostname
+     * @param string $customSlug
+     * @param array  $ogMeta  Optional Open Graph preview: ['og_title', 'og_description', 'og_image']
+     */
+    public function createLink(string $targetUrl, string $hostname, string $customSlug = '', array $ogMeta = []): array
     {
         $apiBase = rtrim($this->settings->get('shortener_api_base', ''), '/');
-        $apiKey = $this->settings->get('shortener_api_key', '');
+        $apiKey  = $this->settings->get('shortener_api_key', '');
 
         $body = [
-            'hostname' => $hostname,
+            'hostname'   => $hostname,
             'target_url' => $targetUrl,
         ];
 
         if ($customSlug !== '') {
             $body['custom_slug'] = $customSlug;
+        }
+
+        // Attach Open Graph preview metadata when available
+        foreach (['og_title', 'og_description', 'og_image'] as $field) {
+            if (!empty($ogMeta[$field])) {
+                $body[$field] = $ogMeta[$field];
+            }
         }
 
         $response = wp_remote_post($apiBase . '/api/links', [

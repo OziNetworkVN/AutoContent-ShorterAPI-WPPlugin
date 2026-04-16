@@ -2,6 +2,7 @@
 
 namespace Ozi\AutoContent\Admin;
 
+use Ozi\AutoContent\Admin\HistoryPage;
 use Ozi\AutoContent\Providers\ProviderManager;
 use Ozi\AutoContent\Repositories\PromptPresetRepository;
 use Ozi\AutoContent\Repositories\SettingsRepository;
@@ -121,6 +122,10 @@ class DeskPage
                         <th scope="row">Provider / Model</th>
                         <td><span id="ozi-result-meta" style="color:#50575e"></span></td>
                     </tr>
+                    <tr id="ozi-imported-images-row">
+                        <th scope="row">Images</th>
+                        <td><div id="ozi-imported-images" style="display:none"></div></td>
+                    </tr>
                     <tr>
                         <th scope="row">Facebook Caption</th>
                         <td>
@@ -172,21 +177,25 @@ class DeskPage
                     </p>
                 </div>
             </div>
+
+            <hr style="margin:32px 0 24px">
+            <?php $this->renderRecentPosts(); ?>
         </div>
 
         <script>
         (function () {
-            var generateBtn   = document.getElementById('ozi-generate-btn');
-            var generateSpinner = document.getElementById('ozi-generate-spinner');
-            var shortlinkBtn  = document.getElementById('ozi-shortlink-btn');
+            var generateBtn      = document.getElementById('ozi-generate-btn');
+            var generateSpinner  = document.getElementById('ozi-generate-spinner');
+            var shortlinkBtn     = document.getElementById('ozi-shortlink-btn');
             var shortlinkSpinner = document.getElementById('ozi-shortlink-spinner');
-            var noticeArea    = document.getElementById('ozi-notice-area');
-            var resultPanel   = document.getElementById('ozi-result-panel');
-            var ajaxUrl       = document.getElementById('ozi-ajax-url').value;
-            var currentPostId = 0;
+            var noticeArea       = document.getElementById('ozi-notice-area');
+            var resultPanel      = document.getElementById('ozi-result-panel');
+            var ajaxUrl          = document.getElementById('ozi-ajax-url').value;
+            var currentPostId    = 0;
+            var isPostPublished  = false;
 
             function showNotice(type, msg) {
-                noticeArea.innerHTML = '<div class="notice notice-' + type + ' is-dismissible"><p>' + escHtml(msg) + '</p></div>';
+                noticeArea.innerHTML = '<div class="notice notice-' + type + ' is-dismissible"><p>' + msg + '</p></div>';
                 noticeArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
 
@@ -253,7 +262,8 @@ class DeskPage
                     }
 
                     var d = data.data;
-                    currentPostId = d.post_id;
+                    currentPostId   = d.post_id;
+                    isPostPublished = false; // always a draft after generation
 
                     document.getElementById('ozi-result-title').textContent    = d.title;
                     document.getElementById('ozi-result-meta').textContent      = d.provider + ' / ' + d.model;
@@ -262,6 +272,21 @@ class DeskPage
                     document.getElementById('ozi-edit-draft-link').href         = d.edit_url;
                     document.getElementById('ozi-shortlink-hostname-display').textContent =
                         document.getElementById('ozi-hostname').value;
+
+                    // Show imported images info
+                    var imgArea = document.getElementById('ozi-imported-images');
+                    if (d.imported_images && d.imported_images.length) {
+                        var thumbs = d.imported_images.map(function (src) {
+                            return '<img src="' + src + '" style="width:60px;height:60px;object-fit:cover;border-radius:3px;margin:2px">';
+                        }).join('');
+                        imgArea.innerHTML = '<p><strong>✅ ' + d.imported_images.length + ' image(s) imported & inserted:</strong><br>' + thumbs + '</p>';
+                        imgArea.style.display = '';
+                    } else if (document.getElementById('ozi-image-context').value.trim()) {
+                        imgArea.innerHTML = '<p style="color:#996800">⚠️ Image context provided but no image URLs were detected or downloaded.</p>';
+                        imgArea.style.display = '';
+                    } else {
+                        imgArea.style.display = 'none';
+                    }
 
                     // Image notes
                     var notesRow  = document.getElementById('ozi-image-notes-row');
@@ -291,6 +316,10 @@ class DeskPage
             shortlinkBtn.addEventListener('click', async function () {
                 if (!currentPostId) {
                     showNotice('error', 'Generate a draft first.');
+                    return;
+                }
+                if (!isPostPublished) {
+                    showNotice('warning', '⚠️ Short links can only be created for <strong>published</strong> posts. Open the draft editor, publish the post, then return here to create the short link.');
                     return;
                 }
 
@@ -361,6 +390,83 @@ class DeskPage
             });
         })();
         </script>
+        <?php
+    }
+
+    // -------------------------------------------------------------------------
+
+    private function renderRecentPosts(): void
+    {
+        $posts = HistoryPage::recentPosts(10);
+        ?>
+        <h2 style="margin-bottom:12px">
+            Recent Generations
+            <a href="<?php echo esc_url(admin_url('admin.php?page=ozi-ai-content-history')); ?>" style="font-size:13px;font-weight:normal;margin-left:12px">View all →</a>
+        </h2>
+
+        <?php if (empty($posts)) : ?>
+            <p style="color:#50575e">No AI-generated posts yet.</p>
+        <?php else : ?>
+            <table class="wp-list-table widefat fixed striped" style="max-width:100%">
+                <thead>
+                    <tr>
+                        <th style="width:44px"></th>
+                        <th>Title</th>
+                        <th style="width:80px">Status</th>
+                        <th style="width:110px">Provider</th>
+                        <th style="width:120px">Generated</th>
+                        <th style="width:150px">Short URL</th>
+                        <th style="width:60px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($posts as $post) :
+                        $provider = get_post_meta($post->ID, '_ozi_ai_provider', true);
+                        $model    = get_post_meta($post->ID, '_ozi_ai_model', true);
+                        $shortUrl = get_post_meta($post->ID, '_ozi_short_url', true);
+                        $genAt    = get_post_meta($post->ID, '_ozi_last_generation_at', true);
+                        $thumb    = get_the_post_thumbnail_url($post->ID, 'thumbnail');
+                        $editUrl  = get_edit_post_link($post->ID, 'raw');
+
+                        $statusColor = [
+                            'publish' => '#0a7f37',
+                            'draft'   => '#b32d2e',
+                            'pending' => '#996800',
+                            'private' => '#50575e',
+                        ][$post->post_status] ?? '#50575e';
+                        $statusLabel = ucfirst($post->post_status);
+                    ?>
+                    <tr>
+                        <td>
+                            <?php if ($thumb) : ?>
+                                <img src="<?php echo esc_url($thumb); ?>" style="width:36px;height:36px;object-fit:cover;border-radius:3px;vertical-align:middle">
+                            <?php else : ?>
+                                <span style="display:inline-block;width:36px;height:36px;background:#f0f0f1;border-radius:3px;line-height:36px;text-align:center;color:#aaa">🖼</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <a href="<?php echo esc_url($editUrl); ?>" style="font-weight:600">
+                                <?php echo esc_html(mb_substr($post->post_title ?: '(no title)', 0, 70)); ?>
+                            </a>
+                        </td>
+                        <td><span style="color:<?php echo esc_attr($statusColor); ?>;font-size:12px;font-weight:600"><?php echo esc_html($statusLabel); ?></span></td>
+                        <td style="font-size:12px;color:#50575e"><?php echo esc_html($provider ?: '—'); ?></td>
+                        <td style="font-size:12px;color:#50575e"><?php echo $genAt ? esc_html(wp_date('d/m H:i', strtotime($genAt))) : '—'; ?></td>
+                        <td style="font-size:12px">
+                            <?php if ($shortUrl) : ?>
+                                <a href="<?php echo esc_url($shortUrl); ?>" target="_blank"><?php echo esc_html($shortUrl); ?></a>
+                            <?php else : ?>
+                                <span style="color:#aaa">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <a href="<?php echo esc_url($editUrl); ?>" class="button button-small">Edit</a>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
         <?php
     }
 }

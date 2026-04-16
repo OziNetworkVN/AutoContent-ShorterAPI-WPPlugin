@@ -2,7 +2,6 @@
 
 namespace Ozi\AutoContent\Admin;
 
-use Ozi\AutoContent\Admin\PromptPresetsPage;
 use Ozi\AutoContent\Support\Capabilities;
 
 class Menu
@@ -10,19 +9,25 @@ class Menu
     private $deskPage;
     private $settingsPage;
     private $presetsPage;
+    private $historyPage;
 
-    public function __construct(DeskPage $deskPage, SettingsPage $settingsPage, PromptPresetsPage $presetsPage)
-    {
-        $this->deskPage = $deskPage;
+    public function __construct(
+        DeskPage $deskPage,
+        SettingsPage $settingsPage,
+        PromptPresetsPage $presetsPage,
+        HistoryPage $historyPage
+    ) {
+        $this->deskPage     = $deskPage;
         $this->settingsPage = $settingsPage;
-        $this->presetsPage = $presetsPage;
+        $this->presetsPage  = $presetsPage;
+        $this->historyPage  = $historyPage;
     }
 
     public function register()
     {
         add_menu_page(
             'AI Content Desk',
-            'AI Content Desk',
+            'AI Content',
             Capabilities::EDIT,
             'ozi-ai-content-desk',
             [$this->deskPage, 'render'],
@@ -37,6 +42,15 @@ class Menu
             Capabilities::EDIT,
             'ozi-ai-content-desk',
             [$this->deskPage, 'render']
+        );
+
+        add_submenu_page(
+            'ozi-ai-content-desk',
+            'Generation History',
+            'History',
+            Capabilities::EDIT,
+            'ozi-ai-content-history',
+            [$this->historyPage, 'render']
         );
 
         add_submenu_page(
