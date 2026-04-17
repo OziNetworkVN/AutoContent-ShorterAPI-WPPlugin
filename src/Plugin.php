@@ -54,6 +54,7 @@ class Plugin
         add_action('admin_post_ozi_save_preset',          [$presetsPage, 'handlePost']);
         add_action('wp_ajax_ozi_generate_draft',          [$ajax, 'generateDraft']);
         add_action('wp_ajax_ozi_create_shortlink',        [$ajax, 'createShortlink']);
+        add_action('wp_ajax_ozi_publish_post',            [$ajax, 'publishPost']);
         add_action('wp_ajax_ozi_check_connection',        [$ajax, 'checkConnection']);
         add_action('wp_ajax_ozi_metabox_create_shortlink',[$ajax, 'metaboxCreateShortlink']);
     }

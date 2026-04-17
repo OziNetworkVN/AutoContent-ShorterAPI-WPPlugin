@@ -109,6 +109,7 @@ class AjaxController
         wp_send_json_success([
             'post_id'            => $newPostId,
             'edit_url'           => get_edit_post_link($newPostId, 'raw'),
+            'preview_url'        => get_preview_post_link($newPostId),
             'title'              => $result['title'] ?? '',
             'facebook_caption'   => $result['facebook_caption'] ?? '',
             'image_prompt'       => $result['image_prompt'] ?? '',
@@ -237,6 +238,46 @@ class AjaxController
         ]);
 
         wp_send_json_success(['short_url' => $shortUrl]);
+    }
+
+    // -------------------------------------------------------------------------
+
+    public function publishPost()
+    {
+        if (!current_user_can(Capabilities::EDIT)) {
+            wp_send_json_error(['message' => 'Unauthorized'], 403);
+        }
+
+        check_ajax_referer('ozi_acwp_publish_post', 'nonce');
+
+        $postId = absint($_POST['post_id'] ?? 0);
+        if (!$postId) {
+            wp_send_json_error(['message' => 'Missing post_id.'], 400);
+        }
+
+        $post = get_post($postId);
+        if (!$post) {
+            wp_send_json_error(['message' => 'Post not found.'], 404);
+        }
+
+        if ($post->post_status === 'publish') {
+            wp_send_json_success([
+                'message'   => 'Already published.',
+                'permalink' => get_permalink($postId),
+            ]);
+            return;
+        }
+
+        $updated = wp_update_post(['ID' => $postId, 'post_status' => 'publish'], true);
+
+        if (is_wp_error($updated)) {
+            wp_send_json_error(['message' => $updated->get_error_message()], 500);
+        }
+
+        wp_send_json_success([
+            'message'   => 'Post published.',
+            'permalink' => get_permalink($postId),
+        ]);
     }
 
     // -------------------------------------------------------------------------
